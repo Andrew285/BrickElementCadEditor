@@ -17,12 +17,7 @@ namespace App.MainForm.Menu
 
         private void CreateMenuStrip()
         {
-            MenuStrip = new MenuStrip
-            {
-                BackColor = ColorScheme.MenuBackground,
-                ForeColor = ColorScheme.MenuForeground,
-                Font = new Font("Segoe UI", 9F)
-            };
+            MenuStrip = new MenuStrip(); // Use default appearance
         }
 
         private void CreateMenuItems()
@@ -116,11 +111,7 @@ namespace App.MainForm.Menu
 
         private ToolStripMenuItem CreateMenu(string text)
         {
-            return new ToolStripMenuItem(text)
-            {
-                BackColor = ColorScheme.MenuBackground,
-                ForeColor = ColorScheme.MenuForeground
-            };
+            return new ToolStripMenuItem(text); // Use default appearance
         }
 
         private ToolStripMenuItem CreateMenuItem(string text, string shortcut, MenuAction action)
@@ -128,11 +119,8 @@ namespace App.MainForm.Menu
             var item = new ToolStripMenuItem(text)
             {
                 ShortcutKeyDisplayString = shortcut,
-                BackColor = ColorScheme.MenuBackground,
-                ForeColor = ColorScheme.MenuForeground,
                 Tag = action
             };
-
             item.Click += OnMenuItemClick;
             return item;
         }
@@ -147,8 +135,7 @@ namespace App.MainForm.Menu
 
         private void ApplyTheme()
         {
-            // Apply theme-specific styling
-            MenuStrip.Renderer = new DarkMenuRenderer();
+            // Do not set a custom renderer
         }
     }
 

@@ -12,7 +12,7 @@ using ToolStripManager = App.MainForm.Toolstrip.ToolStripManager;
 
 namespace BrickElementCadEditor
 {
-    public partial class MainForm : Form
+    public partial class MainForm : Form, IMainForm
     {
         private MenuStripManager menuManager;
         private ToolStripManager toolStripManager;
@@ -24,6 +24,7 @@ namespace BrickElementCadEditor
         private PropertiesPanel propertiesPanel;
         private ViewportPanel viewportPanel;
         private LibraryPanel libraryPanel;
+        public EventHandler OnLoaded {  get; set; }
 
         public MainForm()
         {
@@ -59,7 +60,7 @@ namespace BrickElementCadEditor
             // Initialize panels
             hierarchyPanel = new HierarchyPanel();
             propertiesPanel = new PropertiesPanel();
-            viewportPanel = new ViewportPanel();
+            viewportPanel = new ViewportPanel(this);
             libraryPanel = new LibraryPanel();
         }
 
@@ -107,6 +108,8 @@ namespace BrickElementCadEditor
             // Form events
             FormClosing += OnFormClosing;
             Resize += OnFormResize;
+
+            this.Shown += (s, e) => OnLoaded?.Invoke(this, EventArgs.Empty);
         }
 
         #region Event Handlers
@@ -131,6 +134,10 @@ namespace BrickElementCadEditor
         private void OnMenuItemClicked(object sender, MenuItemEventArgs e)
         {
             // TODO: Handle menu actions (File, Edit, etc.)
+            if (e.Action == MenuAction.FileExit)
+            {
+                this.Close();
+            }
         }
 
         private void OnToolSelected(object sender, ToolEventArgs e)

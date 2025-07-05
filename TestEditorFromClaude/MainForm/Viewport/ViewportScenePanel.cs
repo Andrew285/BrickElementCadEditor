@@ -1,5 +1,10 @@
 ﻿using App.MainForm.Toolstrip;
 using App.Theme;
+using Raylib_cs;
+using System.Numerics;
+using System.Runtime.InteropServices;
+using Color = System.Drawing.Color;
+using Font = System.Drawing.Font;
 
 namespace App.MainForm.Viewport
 {
@@ -7,7 +12,10 @@ namespace App.MainForm.Viewport
     {
         private Panel renderPanel;
         private Panel overlayPanel;
+        private Form form;
         private ContextMenuStrip viewportContextMenu;
+        private System.Windows.Forms.Timer raylibTimer;
+        private bool raylibInitialized = false;
 
         public event EventHandler<ObjectSelectedEventArgs> ObjectSelected;
         public event EventHandler<ViewportEventArgs> ViewportAction;
@@ -15,14 +23,25 @@ namespace App.MainForm.Viewport
         private bool isDragging;
         private Point lastMousePosition;
         private ViewportMode currentViewMode;
+        Camera3D camera;
 
-        public ViewportPanel()
+        public ViewportPanel(Form form)
         {
+            this.form = form;
             currentViewMode = ViewportMode.Solid;
             InitializeComponent();
             SetupLayout();
             CreateContextMenu();
             WireEvents();
+
+            camera = new Camera3D
+            {
+                Position = new Vector3(0.0f, 0.0f, 10.0f),
+                Target = Vector3.Zero,
+                Up = Vector3.UnitY,
+                FovY = 45.0f,
+                Projection = CameraProjection.Perspective
+            };
         }
 
         private void InitializeComponent()
@@ -31,7 +50,7 @@ namespace App.MainForm.Viewport
             Dock = DockStyle.Fill;
 
             CreateRenderPanel();
-            CreateOverlayPanel();
+            //CreateOverlayPanel();
         }
 
         private void CreateRenderPanel()
@@ -43,29 +62,101 @@ namespace App.MainForm.Viewport
                 BorderStyle = BorderStyle.None
             };
 
-            // Enable double buffering for smooth rendering
             typeof(Panel).InvokeMember("DoubleBuffered",
                 System.Reflection.BindingFlags.SetProperty | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
                 null, renderPanel, new object[] { true });
         }
 
-        private void CreateOverlayPanel()
+        //private void CreateOverlayPanel()
+        //{
+        //    overlayPanel = new Panel
+        //    {
+        //        Dock = DockStyle.Fill,
+        //        BackColor = System.Drawing.Color.Transparent,
+        //        BorderStyle = BorderStyle.None
+        //    };
+        //}
+
+        #region WinAPI Entry Points
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetWindowPos(IntPtr handle, IntPtr handleAfter, int x, int y, int cx, int cy, uint flags);
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetParent(IntPtr child, IntPtr newParent);
+        [DllImport("user32.dll")]
+        private static extern IntPtr ShowWindow(IntPtr handle, int command);
+        #endregion
+
+        public void StartRaylibRenderLoop()
         {
-            overlayPanel = new Panel
+            if (raylibInitialized)
+                return;
+
+            Raylib.SetConfigFlags(ConfigFlags.UndecoratedWindow);
+            Raylib.InitWindow(renderPanel.Width, renderPanel.Height, "Raylib Viewport");
+            Raylib.SetTargetFPS(60);
+
+            unsafe
             {
-                Dock = DockStyle.Fill,
-                BackColor = Color.Transparent,
-                BorderStyle = BorderStyle.None
-            };
+                void* windowHandleVoid = Raylib.GetWindowHandle();
+                var winHandle2 = new IntPtr(windowHandleVoid);
+
+                SetWindowPos(winHandle2, form.Handle, 0, 0, 0, 0, 0x0401);
+                SetParent(winHandle2, renderPanel.Handle);
+                ShowWindow(winHandle2, 1);
+            }
+
+            raylibInitialized = true;
+
+            //raylibTimer = new System.Windows.Forms.Timer();
+            //raylibTimer.Interval = 16; // ~60 FPS
+            //raylibTimer.Tick += (s, e) => RaylibRenderTick();
+            //raylibTimer.Start();
+        }
+
+        //private void RaylibRenderTick()
+        //{
+        //    if (!Raylib.IsWindowReady() || Raylib.WindowShouldClose())
+        //    {
+        //        raylibTimer?.Stop();
+        //        return;
+        //    }
+
+        //    Camera3D camera = new Camera3D
+        //    {
+        //        Position = new Vector3(0.0f, 0.0f, 10.0f),
+        //        Target = Vector3.Zero,
+        //        Up = Vector3.UnitY,
+        //        FovY = 45.0f,
+        //        Projection = CameraProjection.Perspective
+        //    };
+
+        //    Raylib.BeginDrawing();
+        //    Raylib.ClearBackground(Raylib_cs.Color.DarkGray);
+
+        //    Raylib.BeginMode3D(camera);
+        //    Raylib.DrawCube(Vector3.Zero, 2.0f, 2.0f, 2.0f, Raylib_cs.Color.Red);
+        //    Raylib.DrawGrid(10, 1.0f);
+        //    Raylib.EndMode3D();
+
+        //    Raylib.DrawFPS(10, 10);
+        //    Raylib.EndDrawing();
+        //}
+
+        public void StopRaylibRenderLoop()
+        {
+            raylibTimer?.Stop();
+            if (raylibInitialized)
+            {
+                Raylib.CloseWindow();
+                raylibInitialized = false;
+            }
         }
 
         private void SetupLayout()
         {
-            // Add panels in correct order (overlay on top)
-            Controls.Add(overlayPanel);
+            //Controls.Add(overlayPanel);
             Controls.Add(renderPanel);
 
-            // Create title bar (optional)
             var titleLabel = new Label
             {
                 Text = "Viewport",
@@ -75,10 +166,20 @@ namespace App.MainForm.Viewport
                 ForeColor = ColorScheme.TitleForeground,
                 TextAlign = ContentAlignment.MiddleLeft,
                 Padding = new Padding(10, 0, 0, 0),
-                Font = new Font("Segoe UI", 9F, FontStyle.Bold)
+                Font = new System.Drawing.Font("Segoe UI", 9F, FontStyle.Bold)
             };
 
             Controls.Add(titleLabel);
+
+            // Start Raylib after control is created and visible
+            this.HandleCreated += (s, e) => StartRaylibRenderLoop();
+            renderPanel.Resize += (s, e) =>
+            {
+                if (Raylib.IsWindowReady())
+                {
+                    Raylib.SetWindowSize(renderPanel.Width, renderPanel.Height);
+                }
+            };
         }
 
         private void CreateContextMenu()
@@ -117,10 +218,12 @@ namespace App.MainForm.Viewport
             renderPanel.MouseDoubleClick += OnMouseDoubleClick;
 
             // Paint event for rendering
-            renderPanel.Paint += OnRenderPanelPaint;
+            //renderPanel.Paint += OnRenderPanelPaint;
+
+            ((IMainForm)this.form).OnLoaded += OnAct;
 
             // Resize event
-            renderPanel.Resize += OnRenderPanelResize;
+            //renderPanel.Resize += OnRenderPanelResize;
 
             // Keyboard events (requires focus)
             KeyDown += OnKeyDown;
@@ -133,6 +236,12 @@ namespace App.MainForm.Viewport
         }
 
         #region Event Handlers
+
+        private void OnAct(object sender, EventArgs e)
+        {
+            //StartRaylibRenderLoop();
+            OnRenderPanelPaint(sender, e);
+        }
 
         private void OnMouseDown(object sender, MouseEventArgs e)
         {
@@ -216,11 +325,11 @@ namespace App.MainForm.Viewport
             }
         }
 
-        private void OnRenderPanelPaint(object sender, PaintEventArgs e)
+        private void OnRenderPanelPaint(object sender, EventArgs e)
         {
             // Main rendering happens here
-            RenderScene(e.Graphics);
-            RenderOverlays(e.Graphics);
+            RenderScene();
+            //RenderOverlays(e.Graphics);
         }
 
         private void OnRenderPanelResize(object sender, EventArgs e)
@@ -300,18 +409,52 @@ namespace App.MainForm.Viewport
 
         #region Private Methods
 
-        private void RenderScene(Graphics graphics)
+        private void RenderScene()
         {
-            // Clear background
-            graphics.Clear(ColorScheme.ViewportBackground);
+            //// Clear background
+            //graphics.Clear(ColorScheme.ViewportBackground);
 
-            // TODO: Render 3D scene using graphics context
-            // This is where Raylib-cs integration would go
+            //// TODO: Render 3D scene using graphics context
+            //// This is where Raylib-cs integration would go
 
-            // For now, draw a simple grid and axes
-            DrawGrid(graphics);
-            DrawAxes(graphics);
-            DrawPlaceholderObjects(graphics);
+            //// For now, draw a simple grid and axes
+            //DrawGrid(graphics);
+            //DrawAxes(graphics);
+            //DrawPlaceholderObjects(graphics);
+
+
+            Camera3D camera = new Camera3D
+            {
+                Position = new Vector3(0.0f, 0.0f, 10.0f),
+                Target = Vector3.Zero,
+                Up = Vector3.UnitY,
+                FovY = 45.0f,
+                Projection = CameraProjection.Perspective
+            };
+
+            while (!Raylib.WindowShouldClose())
+            {
+                if (Raylib.IsMouseButtonDown(MouseButton.Left))
+                {
+                    Console.WriteLine();
+                }
+
+                Raylib.BeginDrawing();
+                Raylib.ClearBackground(new Raylib_cs.Color(120, 126, 133, 255));
+            
+                Raylib.BeginMode3D(camera);
+                
+                // Simple 3D content
+                Raylib.DrawCube(Vector3.Zero, 2.0f, 2.0f, 2.0f, Raylib_cs.Color.Red);
+                Raylib.DrawGrid(10, 1.0f);
+                Raylib.DrawFPS(8, 100);
+                Raylib.EndMode3D();
+            
+                Raylib.EndDrawing();
+            }
+
+            Raylib.CloseWindow();
+
         }
 
         private void RenderOverlays(Graphics graphics)

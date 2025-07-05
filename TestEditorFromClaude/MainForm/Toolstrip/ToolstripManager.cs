@@ -104,7 +104,7 @@ namespace App.MainForm.Toolstrip
         {
             var button = new ToolStripButton($"{emoji}\n{text}")
             {
-                BackColor = ColorScheme.ToolbarBackground,
+                //BackColor = ColorScheme.ToolbarBackground,
                 ForeColor = ColorScheme.ToolbarForeground,
                 CheckOnClick = IsToggleTool(tool),
                 DisplayStyle = ToolStripItemDisplayStyle.Text,
@@ -188,7 +188,7 @@ namespace App.MainForm.Toolstrip
 
         private void ApplyTheme()
         {
-            ToolStrip.Renderer = new DarkToolStripRenderer();
+            //ToolStrip.Renderer = new DarkToolStripRenderer();
         }
 
         public void EnableTool(EditorTool tool, bool enabled)
